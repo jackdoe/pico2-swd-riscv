@@ -1,26 +1,13 @@
-/**
- * @file test_api_coverage.c
- * @brief Tests for API functions not covered by other test files
- *
- * Covers: DAP layer utilities, connection state queries, resource management
- *
- * Copyright (c) 2025
- * SPDX-License-Identifier: MIT
- */
-
 #include "test_framework.h"
 #include "pico2-swd-riscv/rp2350.h"
 #include "pico2-swd-riscv/dap.h"
-#include <stdio.h>
+#include "pico/stdlib.h"
 
-//==============================================================================
-// Test 1: DAP Power State Query
-//==============================================================================
+#include <stdio.h>
 
 static bool test_dap_is_powered(swd_target_t *target) {
     printf("# Testing dap_is_powered()...\n");
 
-    // Should be powered since we're connected
     bool powered = dap_is_powered(target);
     if (!powered) {
         printf("# DAP should be powered but reports not powered\n");
@@ -33,14 +20,9 @@ static bool test_dap_is_powered(swd_target_t *target) {
     return true;
 }
 
-//==============================================================================
-// Test 2: Connection State Query
-//==============================================================================
-
 static bool test_swd_is_connected(swd_target_t *target) {
     printf("# Testing swd_is_connected()...\n");
 
-    // Should be connected
     bool connected = swd_is_connected(target);
     if (!connected) {
         printf("# Should be connected but reports not connected\n");
@@ -52,10 +34,6 @@ static bool test_swd_is_connected(swd_target_t *target) {
     test_send_response(RESP_PASS, NULL);
     return true;
 }
-
-//==============================================================================
-// Test 3: SWD Frequency Query
-//==============================================================================
 
 static bool test_swd_get_frequency(swd_target_t *target) {
     printf("# Testing swd_get_frequency()...\n");
@@ -73,10 +51,6 @@ static bool test_swd_get_frequency(swd_target_t *target) {
     return true;
 }
 
-//==============================================================================
-// Test 4: Resource Usage Query
-//==============================================================================
-
 static bool test_swd_get_resource_usage(swd_target_t *target) {
     printf("# Testing swd_get_resource_usage()...\n");
 
@@ -90,7 +64,6 @@ static bool test_swd_get_resource_usage(swd_target_t *target) {
            info.pio1_sm_used[0], info.pio1_sm_used[1],
            info.pio1_sm_used[2], info.pio1_sm_used[3]);
 
-    // Should have at least one active target
     if (info.active_targets == 0) {
         printf("# Should have at least 1 active target\n");
         test_send_response(RESP_FAIL, "No active targets");
@@ -100,10 +73,6 @@ static bool test_swd_get_resource_usage(swd_target_t *target) {
     test_send_response(RESP_PASS, NULL);
     return true;
 }
-
-//==============================================================================
-// Test 5: RP2350 Initialization State Query
-//==============================================================================
 
 static bool test_rp2350_is_initialized(swd_target_t *target) {
     printf("# Testing rp2350_is_initialized()...\n");
@@ -120,14 +89,9 @@ static bool test_rp2350_is_initialized(swd_target_t *target) {
     return true;
 }
 
-//==============================================================================
-// Test 6: Hart Halted State Query
-//==============================================================================
-
 static bool test_rp2350_is_halted(swd_target_t *target) {
     printf("# Testing rp2350_is_halted()...\n");
 
-    // Halt hart 0
     swd_error_t err = rp2350_halt(target, 0);
     if (err != SWD_OK && err != SWD_ERROR_ALREADY_HALTED) {
         printf("# Failed to halt hart 0: %s\n", swd_error_string(err));
@@ -135,7 +99,6 @@ static bool test_rp2350_is_halted(swd_target_t *target) {
         return false;
     }
 
-    // Check if halted
     bool halted = rp2350_is_halted(target, 0);
     if (!halted) {
         printf("# Hart 0 should be halted but reports not halted\n");
@@ -145,7 +108,6 @@ static bool test_rp2350_is_halted(swd_target_t *target) {
 
     printf("# Hart 0 is halted: %s\n", halted ? "yes" : "no");
 
-    // Resume
     err = rp2350_resume(target, 0);
     if (err != SWD_OK) {
         printf("# Failed to resume hart 0: %s\n", swd_error_string(err));
@@ -153,7 +115,6 @@ static bool test_rp2350_is_halted(swd_target_t *target) {
         return false;
     }
 
-    // Check if running
     sleep_ms(10);
     halted = rp2350_is_halted(target, 0);
     if (halted) {
@@ -167,14 +128,9 @@ static bool test_rp2350_is_halted(swd_target_t *target) {
     return true;
 }
 
-//==============================================================================
-// Test 7: DAP Clear Errors
-//==============================================================================
-
 static bool test_dap_clear_errors(swd_target_t *target) {
     printf("# Testing dap_clear_errors()...\n");
 
-    // Clear any sticky error flags
     swd_error_t err = dap_clear_errors(target);
     if (err != SWD_OK) {
         printf("# Failed to clear errors: %s\n", swd_error_string(err));
@@ -187,14 +143,9 @@ static bool test_dap_clear_errors(swd_target_t *target) {
     return true;
 }
 
-//==============================================================================
-// Test 8: DAP Read AP Register
-//==============================================================================
-
 static bool test_dap_read_ap(swd_target_t *target) {
     printf("# Testing dap_read_ap()...\n");
 
-    // Read AP IDR register (offset 0xFC) from RISC-V AP
     swd_result_t result = dap_read_ap(target, AP_RISCV, 0xFC);
     if (result.error != SWD_OK) {
         printf("# Failed to read AP IDR: %s\n", swd_error_string(result.error));
@@ -207,10 +158,6 @@ static bool test_dap_read_ap(swd_target_t *target) {
     test_send_response(RESP_PASS, NULL);
     return true;
 }
-
-//==============================================================================
-// Test Array
-//==============================================================================
 
 test_case_t api_coverage_tests[] = {
     {"DAP Power State Query", test_dap_is_powered, false, false},

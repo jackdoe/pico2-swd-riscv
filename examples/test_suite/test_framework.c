@@ -1,28 +1,12 @@
-/**
- * @file test_framework.c
- * @brief Test framework implementation
- *
- * Copyright (c) 2025
- * SPDX-License-Identifier: MIT
- */
-
 #include "test_framework.h"
 #include "pico2-swd-riscv/rp2350.h"
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
 
-//==============================================================================
-// Global State
-//==============================================================================
-
 static swd_target_t *g_target = NULL;
 static bool g_connected = false;
 static bool g_initialized = false;
-
-//==============================================================================
-// Initialization
-//==============================================================================
 
 void test_framework_init(swd_target_t *target) {
     g_target = target;
@@ -33,10 +17,6 @@ void test_framework_init(swd_target_t *target) {
 swd_target_t* test_get_target(void) {
     return g_target;
 }
-
-//==============================================================================
-// Response Helpers
-//==============================================================================
 
 void test_send_response(const char *status, const char *message) {
     printf("%s", status);
@@ -52,17 +32,12 @@ void test_send_value(uint32_t value) {
     fflush(stdout);
 }
 
-//==============================================================================
-// Setup and Cleanup
-//==============================================================================
-
 swd_error_t test_setup(void) {
     if (!g_target) {
         printf("# ERROR: No target available\n");
         return SWD_ERROR_INVALID_PARAM;
     }
 
-    // Connect and initialize only on first test
     if (!g_connected) {
         printf("# Connecting to target...\n");
         swd_error_t err = swd_connect(g_target);
@@ -84,8 +59,6 @@ swd_error_t test_setup(void) {
         g_initialized = true;
         printf("# RP2350 debug module initialized\n");
     } else {
-        // Between tests: just halt both harts to ensure clean state
-        // Don't reset - that breaks PC write functionality
         printf("# Halting harts for clean state...\n");
         rp2350_halt(g_target, 0);
         rp2350_halt(g_target, 1);
@@ -95,8 +68,6 @@ swd_error_t test_setup(void) {
 }
 
 void test_cleanup(void) {
-    // This is called after each test - do minimal cleanup
-    // Just resume harts so they're not stuck halted
     if (g_target && g_initialized) {
         rp2350_resume(g_target, 0);
         rp2350_resume(g_target, 1);
@@ -104,20 +75,17 @@ void test_cleanup(void) {
 }
 
 void test_final_cleanup(void) {
-    // This disconnects everything - only called at end of test suite
     if (!g_target) {
         return;
     }
 
     printf("# Final cleanup - disconnecting...\n");
 
-    // Resume both harts
     if (g_initialized) {
         rp2350_resume(g_target, 0);
         rp2350_resume(g_target, 1);
     }
 
-    // Disconnect
     if (g_connected) {
         swd_disconnect(g_target);
         g_connected = false;
@@ -126,10 +94,6 @@ void test_final_cleanup(void) {
 
     g_initialized = false;
 }
-
-//==============================================================================
-// Test Execution
-//==============================================================================
 
 bool test_run_single(test_case_t *test_case) {
     if (!test_case || !test_case->test_func) {
@@ -141,7 +105,6 @@ bool test_run_single(test_case_t *test_case) {
     printf("%s\n", test_case->name);
     printf("========================================\n");
 
-    // Setup (connect on first test, reset between tests)
     swd_error_t err = test_setup();
     if (err != SWD_OK) {
         printf("# Setup failed: %s\n", swd_error_string(err));
@@ -150,15 +113,12 @@ bool test_run_single(test_case_t *test_case) {
         return false;
     }
 
-    // Run test
     bool passed = test_case->test_func(g_target);
     test_case->passed = passed;
     test_case->ran = true;
 
-    // Cleanup (just resume harts)
     test_cleanup();
 
-    // Report result
     if (passed) {
         printf("# RESULT: PASS\n");
     } else {

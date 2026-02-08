@@ -6,4 +6,5 @@ endif()
 
 # Build examples
 add_subdirectory(basic)
+add_subdirectory(debugger)
 add_subdirectory(test_suite)

@@ -1,19 +1,7 @@
-/**
- * @file test_hart1.c
- * @brief Hart 1 specific tests
- *
- * Copyright (c) 2025
- * SPDX-License-Identifier: MIT
- */
-
 #include "test_framework.h"
 #include "pico2-swd-riscv/rp2350.h"
 #include <stdio.h>
 #include "pico/stdlib.h"
-
-//==============================================================================
-// Test 17: Halt Hart 1
-//==============================================================================
 
 static bool test_halt_hart1(swd_target_t *target) {
     printf("# Halting hart 1...\n");
@@ -30,14 +18,10 @@ static bool test_halt_hart1(swd_target_t *target) {
     return true;
 }
 
-//==============================================================================
-// Test 18: Read Hart 1 PC
-//==============================================================================
-
 static bool test_read_pc_hart1(swd_target_t *target) {
     printf("# Reading PC from hart 1...\n");
 
-    rp2350_halt(target, 1);  // Ensure halted
+    rp2350_halt(target, 1);
 
     swd_result_t pc = rp2350_read_pc(target, 1);
     if (pc.error != SWD_OK) {
@@ -51,10 +35,6 @@ static bool test_read_pc_hart1(swd_target_t *target) {
     test_send_response(RESP_PASS, NULL);
     return true;
 }
-
-//==============================================================================
-// Test 19: Write and Verify Hart 1 Registers
-//==============================================================================
 
 static bool test_write_verify_hart1_regs(swd_target_t *target) {
     printf("# Writing and verifying hart 1 registers...\n");
@@ -85,25 +65,19 @@ static bool test_write_verify_hart1_regs(swd_target_t *target) {
     return true;
 }
 
-//==============================================================================
-// Test 20: PC Write Verification (Both Harts)
-//==============================================================================
-
 static bool test_pc_write_verification(swd_target_t *target) {
     printf("# Testing PC write verification on both harts...\n");
     printf("# This test verifies if PC write actually works on both harts\n");
 
-    // Simple program: sw a0, 0(a1); j 0
     uint32_t program[] = {
-        0x00a5a023,  // sw x10, 0(x11) - Store a0 to address in a1
-        0x0000006f,  // j 0 - Infinite loop
+        0x00a5a023,
+        0x0000006f,
     };
 
     uint32_t program_addr = 0x20005000;
     uint32_t h0_result_addr = 0x20006000;
     uint32_t h1_result_addr = 0x20006004;
 
-    // Upload program
     printf("# Uploading test program to 0x%08lx...\n", (unsigned long)program_addr);
     for (uint i = 0; i < sizeof(program)/sizeof(program[0]); i++) {
         swd_error_t err = rp2350_write_mem32(target, program_addr + (i * 4), program[i]);
@@ -114,25 +88,20 @@ static bool test_pc_write_verification(swd_target_t *target) {
         }
     }
 
-    // Clear result memory locations
     rp2350_write_mem32(target, h0_result_addr, 0x00000000);
     rp2350_write_mem32(target, h1_result_addr, 0x00000000);
 
-    // Ensure both harts are halted
     rp2350_halt(target, 0);
     rp2350_halt(target, 1);
 
-    // Hart 0: Set a0=0xAAAAAAAA, a1=h0_result_addr
     printf("# Hart 0: Setting a0=0xAAAAAAAA, a1=0x%08lx\n", (unsigned long)h0_result_addr);
-    rp2350_write_reg(target, 0, 10, 0xAAAAAAAA);  // a0 = x10
-    rp2350_write_reg(target, 0, 11, h0_result_addr);  // a1 = x11
+    rp2350_write_reg(target, 0, 10, 0xAAAAAAAA);
+    rp2350_write_reg(target, 0, 11, h0_result_addr);
 
-    // Hart 1: Set a0=0x55555555, a1=h1_result_addr
     printf("# Hart 1: Setting a0=0x55555555, a1=0x%08lx\n", (unsigned long)h1_result_addr);
-    rp2350_write_reg(target, 1, 10, 0x55555555);  // a0 = x10
-    rp2350_write_reg(target, 1, 11, h1_result_addr);  // a1 = x11
+    rp2350_write_reg(target, 1, 10, 0x55555555);
+    rp2350_write_reg(target, 1, 11, h1_result_addr);
 
-    // Set PC on both harts
     printf("# Setting PC to 0x%08lx on both harts...\n", (unsigned long)program_addr);
     swd_error_t err = rp2350_write_pc(target, 0, program_addr);
     if (err != SWD_OK) {
@@ -148,20 +117,16 @@ static bool test_pc_write_verification(swd_target_t *target) {
         return false;
     }
 
-    // Resume both harts
     printf("# Resuming both harts...\n");
     rp2350_resume(target, 0);
     rp2350_resume(target, 1);
 
-    // Let them run briefly
     sleep_ms(10);
 
-    // Halt both harts
     printf("# Halting both harts...\n");
     rp2350_halt(target, 0);
     rp2350_halt(target, 1);
 
-    // Read results
     printf("# Reading results...\n");
     swd_result_t h0_result = rp2350_read_mem32(target, h0_result_addr);
     swd_result_t h1_result = rp2350_read_mem32(target, h1_result_addr);
@@ -175,8 +140,8 @@ static bool test_pc_write_verification(swd_target_t *target) {
     bool h1_ok = (h1_result.error == SWD_OK && h1_result.value == 0x55555555);
 
     printf("\n# Analysis:\n");
-    printf("#   Hart 0 PC write: %s\n", h0_ok ? "✓ WORKS" : "✗ FAILED");
-    printf("#   Hart 1 PC write: %s\n", h1_ok ? "✓ WORKS" : "✗ FAILED");
+    printf("#   Hart 0 PC write: %s\n", h0_ok ? "WORKS" : "FAILED");
+    printf("#   Hart 1 PC write: %s\n", h1_ok ? "WORKS" : "FAILED");
 
     if (h0_ok && h1_ok) {
         test_send_response(RESP_PASS, NULL);
@@ -186,10 +151,6 @@ static bool test_pc_write_verification(swd_target_t *target) {
         return false;
     }
 }
-
-//==============================================================================
-// Test 21: Read All Hart 1 Registers
-//==============================================================================
 
 static bool test_read_all_hart1_regs(swd_target_t *target) {
     printf("# Reading all 32 registers from hart 1...\n");
@@ -204,16 +165,18 @@ static bool test_read_all_hart1_regs(swd_target_t *target) {
         return false;
     }
 
+    if (regs[0] != 0) {
+        printf("# x0 should be 0, got 0x%08lx\n", (unsigned long)regs[0]);
+        test_send_response(RESP_FAIL, "x0 not zero");
+        return false;
+    }
+
     printf("# Successfully read all 32 registers from hart 1\n");
     printf("# Sample: x1=0x%08lx x2=0x%08lx x3=0x%08lx\n",
            (unsigned long)regs[1], (unsigned long)regs[2], (unsigned long)regs[3]);
     test_send_response(RESP_PASS, NULL);
     return true;
 }
-
-//==============================================================================
-// Test Suite Definition
-//==============================================================================
 
 test_case_t hart1_tests[] = {
     { "TEST 17: Halt Hart 1", test_halt_hart1, false, false },

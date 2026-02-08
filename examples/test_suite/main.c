@@ -1,14 +1,3 @@
-/**
- * @file main.c
- * @brief Main entry point for pico2-swd-riscv test suite
- *
- * This program runs on a Pico connected to a target RP2350 and executes
- * a comprehensive test suite with proper isolation between tests.
- *
- * Copyright (c) 2025
- * SPDX-License-Identifier: MIT
- */
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -18,19 +7,10 @@
 #include "pico2-swd-riscv/version.h"
 #include "test_framework.h"
 
-// Pin configuration - adjust for your hardware
 #define SWCLK_PIN 2
 #define SWDIO_PIN 3
 
-//==============================================================================
-// Global State
-//==============================================================================
-
 static swd_target_t *g_target = NULL;
-
-//==============================================================================
-// Test Suite Runner
-//==============================================================================
 
 static void run_all_tests(void) {
     printf("\n");
@@ -40,93 +20,82 @@ static void run_all_tests(void) {
 
     test_stats_t total_stats = {0};
 
-    // Run basic tests
     printf("\n=== BASIC CONNECTION TESTS ===\n");
     test_stats_t basic_stats = test_run_suite(basic_tests, basic_test_count);
     total_stats.total += basic_stats.total;
     total_stats.passed += basic_stats.passed;
     total_stats.failed += basic_stats.failed;
 
-    // Run Hart 0 tests
     printf("\n=== HART 0 TESTS ===\n");
     test_stats_t hart0_stats = test_run_suite(hart0_tests, hart0_test_count);
     total_stats.total += hart0_stats.total;
     total_stats.passed += hart0_stats.passed;
     total_stats.failed += hart0_stats.failed;
 
-    // Run Hart 1 tests
     printf("\n=== HART 1 TESTS ===\n");
     test_stats_t hart1_stats = test_run_suite(hart1_tests, hart1_test_count);
     total_stats.total += hart1_stats.total;
     total_stats.passed += hart1_stats.passed;
     total_stats.failed += hart1_stats.failed;
 
-    // Run Dual-Hart tests
     printf("\n=== DUAL-HART TESTS ===\n");
     test_stats_t dual_stats = test_run_suite(dual_hart_tests, dual_hart_test_count);
     total_stats.total += dual_stats.total;
     total_stats.passed += dual_stats.passed;
     total_stats.failed += dual_stats.failed;
 
-    // Run Memory tests
     printf("\n=== MEMORY TESTS ===\n");
     test_stats_t mem_stats = test_run_suite(memory_tests, memory_test_count);
     total_stats.total += mem_stats.total;
     total_stats.passed += mem_stats.passed;
     total_stats.failed += mem_stats.failed;
 
-    // Run Trace tests
     printf("\n=== TRACE TESTS ===\n");
     test_stats_t trace_stats = test_run_suite(trace_tests, trace_test_count);
     total_stats.total += trace_stats.total;
     total_stats.passed += trace_stats.passed;
     total_stats.failed += trace_stats.failed;
 
-    // Run API Coverage tests
     printf("\n=== API COVERAGE TESTS ===\n");
     test_stats_t api_stats = test_run_suite(api_coverage_tests, api_coverage_test_count);
     total_stats.total += api_stats.total;
     total_stats.passed += api_stats.passed;
     total_stats.failed += api_stats.failed;
 
-    // Run Memory Operations tests
     printf("\n=== MEMORY OPERATIONS TESTS ===\n");
     test_stats_t mem_ops_stats = test_run_suite(memory_ops_tests, memory_ops_test_count);
     total_stats.total += mem_ops_stats.total;
     total_stats.passed += mem_ops_stats.passed;
     total_stats.failed += mem_ops_stats.failed;
 
-    // Run Cache tests
     printf("\n=== CACHE TESTS ===\n");
     test_stats_t cache_stats = test_run_suite(cache_tests, cache_test_count);
     total_stats.total += cache_stats.total;
     total_stats.passed += cache_stats.passed;
     total_stats.failed += cache_stats.failed;
 
-    // Run Code Execution tests
     printf("\n=== CODE EXECUTION TESTS ===\n");
     test_stats_t code_exec_stats = test_run_suite(code_exec_tests, code_exec_test_count);
     total_stats.total += code_exec_stats.total;
     total_stats.passed += code_exec_stats.passed;
     total_stats.failed += code_exec_stats.failed;
 
-    // Print overall statistics
+    printf("\n=== ERROR PATH TESTS ===\n");
+    test_stats_t error_path_stats = test_run_suite(error_path_tests, error_path_test_count);
+    total_stats.total += error_path_stats.total;
+    total_stats.passed += error_path_stats.passed;
+    total_stats.failed += error_path_stats.failed;
+
     printf("\n");
     printf("====================================\n");
     printf("  Overall Test Results\n");
     printf("====================================\n");
     test_print_stats(&total_stats);
 
-    // Final cleanup after all tests
     test_final_cleanup();
 }
 
-//==============================================================================
-// Command Handler
-//==============================================================================
-
 static void handle_command(char *cmd) {
-    // Trim newline/carriage return
     char *newline = strchr(cmd, '\n');
     if (newline) *newline = '\0';
     char *cr = strchr(cmd, '\r');
@@ -159,15 +128,9 @@ static void handle_command(char *cmd) {
     }
 }
 
-//==============================================================================
-// Main Entry Point
-//==============================================================================
-
 int main() {
-    // Initialize stdio
     stdio_init_all();
 
-    // Wait for USB connection
     sleep_ms(2000);
 
     printf("\n\n");
@@ -178,11 +141,10 @@ int main() {
     printf("Pins: SWCLK=%d, SWDIO=%d\n", SWCLK_PIN, SWDIO_PIN);
     printf("\n");
 
-    // Create target
     swd_config_t config = swd_config_default();
     config.pin_swclk = SWCLK_PIN;
     config.pin_swdio = SWDIO_PIN;
-    config.freq_khz = 1000;  // 1 MHz
+    config.freq_khz = 1000;
     config.enable_caching = true;
 
     g_target = swd_target_create(&config);
@@ -191,25 +153,21 @@ int main() {
         return 1;
     }
 
-    // Initialize test framework
     test_framework_init(g_target);
 
     printf("Test suite ready!\n");
     printf("Send 'TEST_ALL' to run full test suite, or 'HELP' for commands.\n");
     printf("\n");
 
-    // Command loop
     char cmd_buf[128];
     int cmd_pos = 0;
 
     while (true) {
-        // Read command from serial
-        int c = getchar_timeout_us(100000);  // 100ms timeout
+        int c = getchar_timeout_us(100000);
         if (c == PICO_ERROR_TIMEOUT) {
             continue;
         }
 
-        // Build command string
         if (c == '\n' || c == '\r') {
             if (cmd_pos > 0) {
                 cmd_buf[cmd_pos] = '\0';
@@ -221,7 +179,6 @@ int main() {
         }
     }
 
-    // Cleanup (never reached in normal operation)
     swd_target_destroy(g_target);
     return 0;
 }

@@ -1,11 +1,3 @@
-/**
- * @file swd.c
- * @brief Core SWD target management and resource tracking
- *
- * Copyright (c) 2025
- * SPDX-License-Identifier: MIT
- */
-
 #include "pico2-swd-riscv/swd.h"
 #include "pico2-swd-riscv/dap.h"
 #include "internal.h"
@@ -17,19 +9,11 @@
 #include "hardware/gpio.h"
 #include "hardware/clocks.h"
 
-//==============================================================================
-// Global Resource Tracker
-//==============================================================================
-
 resource_tracker_t g_resources = {
     .pio0_sm_owners = {NULL, NULL, NULL, NULL},
     .pio1_sm_owners = {NULL, NULL, NULL, NULL},
     .active_count = 0
 };
-
-//==============================================================================
-// Error Strings
-//==============================================================================
 
 static const char* error_strings[] = {
     [SWD_OK] = "Success",
@@ -54,15 +38,11 @@ static const char* error_strings[] = {
 };
 
 const char* swd_error_string(swd_error_t error) {
-    if (error >= sizeof(error_strings)/sizeof(error_strings[0])) {
+    if (error >= SWD_ERROR_COUNT) {
         return "Unknown error";
     }
     return error_strings[error];
 }
-
-//==============================================================================
-// Error Management
-//==============================================================================
 
 void swd_set_error(swd_target_t *target, swd_error_t error, const char *detail, ...) {
     if (!target) return;
@@ -98,12 +78,7 @@ swd_error_t swd_ack_to_error(uint8_t ack) {
     }
 }
 
-//==============================================================================
-// Resource Management
-//==============================================================================
-
 swd_error_t allocate_pio_sm(PIO *pio, uint *sm) {
-    // Try PIO0 first
     for (uint i = 0; i < 4; i++) {
         if (g_resources.pio0_sm_owners[i] == NULL) {
             *pio = pio0;
@@ -112,7 +87,6 @@ swd_error_t allocate_pio_sm(PIO *pio, uint *sm) {
         }
     }
 
-    // Try PIO1
     for (uint i = 0; i < 4; i++) {
         if (g_resources.pio1_sm_owners[i] == NULL) {
             *pio = pio1;
@@ -152,7 +126,7 @@ bool register_target(swd_target_t *target, PIO pio, uint sm) {
     }
 
     if (*owner_ptr != NULL) {
-        return false;  // Already in use
+        return false;
     }
 
     *owner_ptr = target;
@@ -179,16 +153,12 @@ swd_resource_info_t swd_get_resource_usage(void) {
     return info;
 }
 
-//==============================================================================
-// Configuration
-//==============================================================================
-
 swd_config_t swd_config_default(void) {
     swd_config_t config = {
-        .pio = (PIO)SWD_PIO_AUTO,
-        .sm = SWD_SM_AUTO,
-        .pin_swclk = 0,  // Must be set by user
-        .pin_swdio = 0,  // Must be set by user
+        .pio = (PIO)SWD_AUTO,
+        .sm = SWD_AUTO,
+        .pin_swclk = 0,
+        .pin_swdio = 0,
         .freq_khz = 1000,
         .enable_caching = true,
         .retry_count = 5,
@@ -196,36 +166,28 @@ swd_config_t swd_config_default(void) {
     return config;
 }
 
-//==============================================================================
-// Target Lifecycle
-//==============================================================================
-
 swd_target_t* swd_target_create(const swd_config_t *config) {
     if (!config) {
         SWD_WARN("swd_target_create: NULL config\n");
         return NULL;
     }
 
-    // Allocate target context
     swd_target_t *target = calloc(1, sizeof(swd_target_t));
     if (!target) {
         SWD_WARN("swd_target_create: out of memory\n");
         return NULL;
     }
 
-    // Initialize defaults
     target->last_error = SWD_OK;
     target->connected = false;
     target->resource_registered = false;
 
-    // Configure PIO
     target->pio.pin_swclk = config->pin_swclk;
     target->pio.pin_swdio = config->pin_swdio;
     target->pio.freq_khz = config->freq_khz;
     target->pio.initialized = false;
 
-    // Auto-allocate PIO/SM if requested
-    if ((uintptr_t)config->pio == SWD_PIO_AUTO || config->sm == SWD_SM_AUTO) {
+    if ((uintptr_t)config->pio == SWD_AUTO || config->sm == SWD_AUTO) {
         PIO pio;
         uint sm;
         swd_error_t err = allocate_pio_sm(&pio, &sm);
@@ -241,7 +203,6 @@ swd_target_t* swd_target_create(const swd_config_t *config) {
         target->pio.sm = config->sm;
     }
 
-    // Register resource
     if (!register_target(target, target->pio.pio, target->pio.sm)) {
         swd_set_error(target, SWD_ERROR_RESOURCE_BUSY,
                      "PIO%d SM%d already in use",
@@ -251,18 +212,15 @@ swd_target_t* swd_target_create(const swd_config_t *config) {
     }
     target->resource_registered = true;
 
-    // Initialize DAP state
     target->dap.powered = false;
     target->dap.retry_count = config->retry_count;
-    target->dap.current_apsel = 0xFF;  // Invalid, force first write
+    target->dap.current_apsel = 0xFF;
     target->dap.current_bank = 0xFF;
 
-    // Initialize RP2350 state
     target->rp2350.cache_enabled = config->enable_caching;
     target->rp2350.initialized = false;
     target->rp2350.sba_initialized = false;
 
-    // Initialize per-hart state
     for (uint8_t i = 0; i < RP2350_NUM_HARTS; i++) {
         target->rp2350.harts[i].halt_state_known = false;
         target->rp2350.harts[i].halted = false;
@@ -279,12 +237,10 @@ swd_target_t* swd_target_create(const swd_config_t *config) {
 void swd_target_destroy(swd_target_t *target) {
     if (!target) return;
 
-    // Disconnect if connected
     if (target->connected) {
         swd_disconnect(target);
     }
 
-    // Unregister resources
     unregister_target(target);
 
     SWD_INFO("Destroyed target: PIO%d SM%d\n",
@@ -292,10 +248,6 @@ void swd_target_destroy(swd_target_t *target) {
 
     free(target);
 }
-
-//==============================================================================
-// Connection Status
-//==============================================================================
 
 bool swd_is_connected(const swd_target_t *target) {
     return target && target->connected;
@@ -337,13 +289,6 @@ const char* swd_get_target_info(const swd_target_t *target) {
     return info_buf;
 }
 
-//==============================================================================
-// Frequency Control
-//==============================================================================
-
 uint32_t swd_get_frequency(const swd_target_t *target) {
     return target ? target->pio.freq_khz : 0;
 }
-
-// Note: swd_set_frequency() and swd_connect()/swd_disconnect()
-// will be implemented in swd_protocol.c along with PIO operations

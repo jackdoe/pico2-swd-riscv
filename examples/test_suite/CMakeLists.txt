@@ -14,6 +14,7 @@ add_executable(test_suite
     test_memory_ops.c
     test_cache.c
     test_code_exec.c
+    test_error_paths.c
 )
 
 # Link against the library

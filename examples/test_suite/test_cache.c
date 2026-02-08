@@ -1,27 +1,13 @@
-/**
- * @file test_cache.c
- * @brief Tests for register cache management functions
- *
- * Covers: rp2350_enable_cache, rp2350_invalidate_cache
- *
- * Copyright (c) 2025
- * SPDX-License-Identifier: MIT
- */
-
 #include "test_framework.h"
 #include "pico2-swd-riscv/rp2350.h"
+#include "pico/stdlib.h"
 #include <stdio.h>
-
-//==============================================================================
-// Test 1: Cache Enable/Disable
-//==============================================================================
 
 static bool test_cache_enable_disable(swd_target_t *target) {
     printf("# Testing cache enable/disable...\n");
 
     rp2350_halt(target, 0);
 
-    // Write a test value to x5
     uint32_t test_value = 0xCAFEBABE;
     swd_error_t err = rp2350_write_reg(target, 0, 5, test_value);
     if (err != SWD_OK) {
@@ -30,11 +16,9 @@ static bool test_cache_enable_disable(swd_target_t *target) {
         return false;
     }
 
-    // Enable caching
     rp2350_enable_cache(target, true);
     printf("# Cache enabled\n");
 
-    // Read twice - first populates cache, second should use cache
     swd_result_t result1 = rp2350_read_reg(target, 0, 5);
     if (result1.error != SWD_OK) {
         printf("# First read failed: %s\n", swd_error_string(result1.error));
@@ -57,11 +41,9 @@ static bool test_cache_enable_disable(swd_target_t *target) {
 
     printf("# Both reads returned correct value: 0x%08lx\n", (unsigned long)test_value);
 
-    // Disable caching
     rp2350_enable_cache(target, false);
     printf("# Cache disabled\n");
 
-    // Read again - should work without cache
     swd_result_t result3 = rp2350_read_reg(target, 0, 5);
     if (result3.error != SWD_OK) {
         printf("# Third read failed: %s\n", swd_error_string(result3.error));
@@ -80,17 +62,12 @@ static bool test_cache_enable_disable(swd_target_t *target) {
     return true;
 }
 
-//==============================================================================
-// Test 2: Cache Invalidation for Single Hart
-//==============================================================================
-
 static bool test_cache_invalidate_single_hart(swd_target_t *target) {
     printf("# Testing cache invalidation for single hart...\n");
 
     rp2350_halt(target, 0);
     rp2350_enable_cache(target, true);
 
-    // Write and read to populate cache
     uint32_t value1 = 0x12345678;
     swd_error_t err = rp2350_write_reg(target, 0, 7, value1);
     if (err != SWD_OK) {
@@ -107,11 +84,9 @@ static bool test_cache_invalidate_single_hart(swd_target_t *target) {
     }
     printf("# Cache populated with value: 0x%08lx\n", (unsigned long)value1);
 
-    // Invalidate cache for hart 0
     rp2350_invalidate_cache(target, 0);
     printf("# Cache invalidated for hart 0\n");
 
-    // Read again - should fetch from hardware, not cache
     swd_result_t result2 = rp2350_read_reg(target, 0, 7);
     if (result2.error != SWD_OK) {
         printf("# Read after invalidation failed: %s\n", swd_error_string(result2.error));
@@ -130,10 +105,6 @@ static bool test_cache_invalidate_single_hart(swd_target_t *target) {
     return true;
 }
 
-//==============================================================================
-// Test 3: Cache Isolation Between Harts
-//==============================================================================
-
 static bool test_cache_isolation_between_harts(swd_target_t *target) {
     printf("# Testing cache isolation between harts...\n");
 
@@ -141,7 +112,6 @@ static bool test_cache_isolation_between_harts(swd_target_t *target) {
     rp2350_halt(target, 1);
     rp2350_enable_cache(target, true);
 
-    // Write different values to x10 on both harts
     uint32_t value_h0 = 0xAAAAAAAA;
     uint32_t value_h1 = 0x55555555;
 
@@ -159,7 +129,6 @@ static bool test_cache_isolation_between_harts(swd_target_t *target) {
         return false;
     }
 
-    // Read both - should populate separate caches
     swd_result_t result_h0 = rp2350_read_reg(target, 0, 10);
     swd_result_t result_h1 = rp2350_read_reg(target, 1, 10);
 
@@ -180,11 +149,9 @@ static bool test_cache_isolation_between_harts(swd_target_t *target) {
     printf("# Caches populated: hart0=0x%08lx, hart1=0x%08lx\n",
            (unsigned long)value_h0, (unsigned long)value_h1);
 
-    // Invalidate only hart 0 cache
     rp2350_invalidate_cache(target, 0);
     printf("# Invalidated cache for hart 0 only\n");
 
-    // Read both again
     result_h0 = rp2350_read_reg(target, 0, 10);
     result_h1 = rp2350_read_reg(target, 1, 10);
 
@@ -194,8 +161,6 @@ static bool test_cache_isolation_between_harts(swd_target_t *target) {
         return false;
     }
 
-    // Both should still return correct values
-    // Hart 0 reads from hardware, hart 1 reads from cache
     if (result_h0.value != value_h0 || result_h1.value != value_h1) {
         printf("# Value mismatch after partial invalidation\n");
         test_send_response(RESP_FAIL, "Value mismatch");
@@ -207,17 +172,12 @@ static bool test_cache_isolation_between_harts(swd_target_t *target) {
     return true;
 }
 
-//==============================================================================
-// Test 4: Cache Behavior During Hart Resume
-//==============================================================================
-
 static bool test_cache_behavior_on_resume(swd_target_t *target) {
     printf("# Testing cache invalidation on hart resume...\n");
 
     rp2350_halt(target, 0);
     rp2350_enable_cache(target, true);
 
-    // Write and read to populate cache
     uint32_t value1 = 0xDEADBEEF;
     swd_error_t err = rp2350_write_reg(target, 0, 11, value1);
     if (err != SWD_OK) {
@@ -234,7 +194,6 @@ static bool test_cache_behavior_on_resume(swd_target_t *target) {
     }
     printf("# Cache populated: 0x%08lx\n", (unsigned long)value1);
 
-    // Resume hart (cache should be invalidated)
     err = rp2350_resume(target, 0);
     if (err != SWD_OK) {
         printf("# Failed to resume hart: %s\n", swd_error_string(err));
@@ -245,7 +204,6 @@ static bool test_cache_behavior_on_resume(swd_target_t *target) {
 
     sleep_ms(10);
 
-    // Halt again
     err = rp2350_halt(target, 0);
     if (err != SWD_OK && err != SWD_ERROR_ALREADY_HALTED) {
         printf("# Failed to halt hart: %s\n", swd_error_string(err));
@@ -253,7 +211,6 @@ static bool test_cache_behavior_on_resume(swd_target_t *target) {
         return false;
     }
 
-    // Read again - should fetch from hardware since cache was invalidated
     swd_result_t result2 = rp2350_read_reg(target, 0, 11);
     if (result2.error != SWD_OK) {
         printf("# Read after resume failed: %s\n", swd_error_string(result2.error));
@@ -261,16 +218,18 @@ static bool test_cache_behavior_on_resume(swd_target_t *target) {
         return false;
     }
 
-    printf("# Read after resume/halt cycle successful\n");
-    printf("# Value: 0x%08lx\n", (unsigned long)result2.value);
+    printf("# Read after resume/halt cycle: 0x%08lx\n", (unsigned long)result2.value);
+
+    if (result2.value != value1) {
+        printf("# Value changed: expected 0x%08lx, got 0x%08lx\n",
+               (unsigned long)value1, (unsigned long)result2.value);
+        test_send_response(RESP_FAIL, "Value corrupted after resume");
+        return false;
+    }
 
     test_send_response(RESP_PASS, NULL);
     return true;
 }
-
-//==============================================================================
-// Test Array
-//==============================================================================
 
 test_case_t cache_tests[] = {
     {"Cache Enable/Disable", test_cache_enable_disable, false, false},
